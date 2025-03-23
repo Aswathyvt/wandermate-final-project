@@ -1,12 +1,28 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Link } from "react-router-dom";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "./ui/button";
+import { useDispatch, useSelector } from "react-redux";
+import { toast } from "sonner";
+import Comment from "./Comment";
+import axios from "axios";
+import { setPosts, setSelectedPost } from "@/redux/postSlice";
 
 const CommentDialog = ({ open, setOpen }) => {
   const [text, setText] = useState("");
+  const { selectedPost, posts } = useSelector((store) => store.post);
+  const [comment, setComment] = useState([]);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (selectedPost) {
+      console.log("Selected post updated: ", selectedPost.comments);
+      setComment(selectedPost.comments);
+    }
+  }, [selectedPost]);
+
   const changeEventHandler = (e) => {
     const inputText = e.target.value;
     if (inputText.trim()) {
@@ -17,7 +33,47 @@ const CommentDialog = ({ open, setOpen }) => {
   };
 
   const sendMessageHandler = async () => {
-    alert(text);
+    try {
+      const res = await axios.post(
+        `http://localhost:8000/api/v1/post/${selectedPost._id}/comment`,
+        { text },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          withCredentials: true,
+        }
+      );
+      if (res.data.success) {
+        const newComment = res.data.comment;
+        const updatedCommentData = [...comment, newComment];
+        setComment(updatedCommentData);
+
+        dispatch(
+          setSelectedPost({
+            ...selectedPost,
+            comments: [...selectedPost.comments, newComment],
+          })
+        );
+
+        const updatedPostData = posts.map((p) =>
+          p._id === selectedPost._id
+            ? { ...p, comments: updatedCommentData }
+            : p
+        );
+
+        dispatch(setPosts(updatedPostData));
+        dispatch(
+          setSelectedPost({ ...selectedPost, comments: updatedCommentData })
+        );
+
+        toast.success(res.data.message);
+        setText("");
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.response.data.message);
+    }
   };
 
   return (
@@ -29,7 +85,7 @@ const CommentDialog = ({ open, setOpen }) => {
         <div className="flex flex-1">
           <div className="w-1/2">
             <img
-              src="https://plus.unsplash.com/premium_photo-1668708752418-6bcf63ef49cd?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxmZWF0dXJlZC1waG90b3MtZmVlZHwxOXx8fGVufDB8fHx8fA%3D%3D"
+              src={selectedPost?.image}
               alt="post_img"
               className="w-full h-full object-cover rounded-l-lg"
             />
@@ -40,12 +96,14 @@ const CommentDialog = ({ open, setOpen }) => {
               <div className="flex gap-3 items-center">
                 <Link>
                   <Avatar>
-                    <AvatarImage src="" />
+                    <AvatarImage src={selectedPost?.author?.profilePicture} />
                     <AvatarFallback>CN</AvatarFallback>
                   </Avatar>
                 </Link>
                 <div>
-                  <Link className="font-semibold text-xs">username</Link>
+                  <Link className="font-semibold text-xs">
+                    {selectedPost?.author?.username}
+                  </Link>
                   {/* <span className="text-gray-600 text-sm">Bio here...</span> */}
                 </div>
               </div>
@@ -62,8 +120,17 @@ const CommentDialog = ({ open, setOpen }) => {
               </Dialog>
             </div>
             <hr />
+
             <div className="flex-1 overflow-y-auto max-h-96 p-4">
-              Comments will be displayed here
+              {comment && comment.length > 0 ? (
+                comment.map((comment) =>
+                  comment && comment._id ? (
+                    <Comment key={comment._id} comment={comment} />
+                  ) : null
+                )
+              ) : (
+                <p>No comments available</p>
+              )}
             </div>
             <div className="p-4">
               <div className="flex items-center gap-2">

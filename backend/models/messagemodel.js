@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
-    senderid: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    rec: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     message: { type: String, required: true },
     
 })

@@ -4,6 +4,7 @@ import {Post} from "../models/postmodel.js";
 import { populate } from "dotenv";
 import { User } from "../models/usermodel.js";
 import { Comment } from "../models/commentmodel.js";
+import { getReceiverSocketId, io } from "../socket/socket.js";
 
 export const addNewPost = async(req,res)=>{
     try{
@@ -90,16 +91,46 @@ export const likePost = async(req,res)=>{
         const likedUsersId = req.id;
         const postId = req.params.id;
         const post = await Post.findById(postId);
+
         if(!post) return res.status(404).json({message:"Post not found",success:false})
 
             // like logic
             await post.updateOne({$addToSet:{likes:likedUsersId}});
             await post.save();
 
+            // Implement socket io for real time notification
+            const user = await User.findById(likedUsersId).select('username profilePicture')
+            const postOwnerId = post.author.toString();
+
+            console.log('Like notification - Post owner:', postOwnerId);
+            console.log('Like notification - Current user:', likedUsersId);
+
+            if(postOwnerId!==likedUsersId){
+                // Emit a notification event
+                const notification = {
+                    type:'like',
+                    userId:likedUsersId,
+                    userDetails:user,
+                    postId,
+                    message:'Your post is liked',
+                    timestamp: new Date()
+                }
+
+                const receiverSocketId = getReceiverSocketId(postOwnerId);
+                console.log('Receiver socket ID:', receiverSocketId);
+    
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit('notification', notification);
+                    console.log('Notification sent successfully');
+                } else {
+                    console.log('User is not currently online');
+                }
+            }
+
             return res.status(200).json({message:'Post liked',success:true})
     }catch(error){
         console.log(error);
-        
+        return res.status(500).json({message: "Internal server error", success: false});
     }
 }
 
@@ -113,6 +144,32 @@ export const dislikePost = async(req,res)=>{
             // like logic
             await post.updateOne({$pull:{likes:likedUsersId}});
             await post.save();
+
+            // Implement socket io for real time notification
+            const user = await User.findById(likedUsersId).select('username profilePicture')
+            const postOwnerId = post.author.toString();
+            if(postOwnerId!==likedUsersId){
+                // Emit a notification event
+                const notification = {
+                    type:'dislike',
+                    userId:likedUsersId,
+                    userDetails:user,
+                    postId,
+                    message:'Your post is disliked'
+                }
+                const postOwnerSocketId = getReceiverSocketId(postOwnerId);
+console.log("Post Owner ID:", postOwnerId);
+console.log("Post Owner Socket ID:", postOwnerSocketId);
+console.log("Notification to emit:", notification);
+
+if (postOwnerSocketId) {
+    io.to(postOwnerSocketId).emit("notification", notification);
+} else {
+    console.log("Post Owner Socket ID is undefined or invalid");
+}
+
+            }
+
 
             return res.status(200).json({message:'Post disliked',success:true})
     }catch(error){
@@ -132,9 +189,10 @@ export const addComment = async(req,res)=>{
             text,
             author:commentUserId,
             post:postId
-        }).populate({
+        })
+        await comment.populate({
             path:"author",
-            select:"username,profilePicture",
+            select:"username profilePicture"
         });
         post.comments.push(comment._id);
         await post.save();
@@ -148,7 +206,7 @@ export const addComment = async(req,res)=>{
 export const getCommentOfPost = async(req,res)=>{
 try{
     const postId = req.params.id;
-    const comments = await Comment.find({post:postId}).populate('author','username,profilePicture');
+    const comments = await Comment.find({post:postId}).populate('author','username profilePicture');
     if(!comments) return res.status(404).json({message:"No comments found",success:false})
 
             return res.status(200).json({success:true,comments});
@@ -214,7 +272,7 @@ export const bookmarkPost =async(req,res)=>{
             await user.save();
             return res.status(200).json({
                 type:"saved",
-                message:'Post removed from bookmark',
+                message:'Post bookmarked',
                 success:true
             })
 

@@ -6,12 +6,19 @@ import connectDB from "./utils/db.js";
 import userRoute from "./routes/userRoute.js";
 import postRoute from "./routes/postRoute.js";
 import messageRoute from "./routes/messageRoute.js";
+import {app,server} from "./socket/socket.js"
 
 dotenv.config({});
 
-const app = express();
+
 
 const PORT = process.env.PORT || 3000;
+
+
+app.use(express.json());
+app.use(cookieParser());
+app.use(urlencoded({ extended: true }));
+
 
 app.get("/", (_, res) => {
   return res.status(200).json({
@@ -22,9 +29,6 @@ app.get("/", (_, res) => {
 
 //middlewares
 
-app.use(express.json());
-app.use(cookieParser());
-app.use(urlencoded({ extended: true }));
 
 const corsOptions = {
   origin: "http://localhost:5173",
@@ -37,7 +41,7 @@ app.use("/api/v1/user", userRoute);
 app.use("/api/v1/post", postRoute);
 app.use("/api/v1/message", messageRoute);
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   connectDB();
   console.log(`Server listen at port ${PORT}`);
 });

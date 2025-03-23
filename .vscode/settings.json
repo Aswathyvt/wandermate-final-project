@@ -3,6 +3,7 @@
         "cloudinary",
         "followorunfollow",
         "signup",
+        "socketio",
         "Unfollow"
     ]
 }
